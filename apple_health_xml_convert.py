@@ -190,6 +190,22 @@ def xml_to_csv(file_path):
         axis=1
     ).reset_index().rename(columns={'index': 'date'})
 
+    if not combined.empty:
+        combined['date'] = pd.to_datetime(combined['date'])
+        combined = combined.set_index('date').sort_index()
+        full_index = pd.date_range(
+            start=combined.index.min(),
+            end=combined.index.max(),
+            freq='D'
+        )
+        combined = combined.reindex(full_index)
+        combined[['body_weight', 'body_fat']] = combined[
+            ['body_weight', 'body_fat']
+        ].interpolate(method='time', limit_area='inside')
+        combined.index.name = 'date'
+        combined = combined.reset_index()
+        combined['date'] = combined['date'].dt.date
+
     combined.sort_values(by='date', ascending=False, inplace=True)
 
     print("done!")
