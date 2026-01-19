@@ -27,7 +27,7 @@ def preprocess_to_temp_file(file_path):
     print("Pre-processing and writing to temporary file...", end="")
     sys.stdout.flush()
 
-    temp_file_path = "temp_preprocessed_export.xml"
+    temp_file_path = os.path.join("Data", "temp_preprocessed_export.xml")
     with open(file_path, 'r', encoding='UTF-8') as infile, open(temp_file_path, 'w', encoding='UTF-8') as outfile:
         skip_dtd = False
         for line in infile:
@@ -275,8 +275,10 @@ def save_to_csv(health_df):
     print("Saving CSV file...", end="")
     sys.stdout.flush()
 
+    os.makedirs("Data", exist_ok=True)
     today = dt.datetime.now().strftime('%Y-%m-%d')
-    health_df.to_csv("apple_health_export_" + today + ".csv", index=False)
+    output_path = os.path.join("Data", f"apple_health_export_{today}.csv")
+    health_df.to_csv(output_path, index=False)
     print("done!")
 
 
@@ -288,8 +290,9 @@ def remove_temp_file(temp_file_path):
 
 
 def main():
-    file_path = "export.xml"
-    strong_path = "strong_workouts.csv"
+    os.makedirs("Data", exist_ok=True)
+    file_path = os.path.join("Data", "apple_health_export", "export.xml")
+    strong_path = os.path.join("Data", "strong_workouts.csv")
 
     temp_file_path = preprocess_to_temp_file(file_path)
     health_df = xml_to_csv(temp_file_path)
