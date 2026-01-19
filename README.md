@@ -36,9 +36,16 @@ Your data will be prepared, and then you can transfer the export.zip file to you
      
        
 
-### 4. Place the "apple_health_xml_convert.py" file from this repo into the folder alongside the files and run the script
+### 4. Place your data files into the repo's `Data` folder
 
-`python3 apple_health_xml_convert.py`
+Ensure the following paths exist:
+
+* `Data/apple_health_export/export.xml`
+* `Data/strong_workouts.csv`
+
+### 5. Run the script
+
+`python3 Data/fitness_data_convert.py`
 
 
 

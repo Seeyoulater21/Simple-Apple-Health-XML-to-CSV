@@ -3,13 +3,13 @@
 """
 Simple Apple Health XML to CSV
 ==============================
-:File: convert.py
+:File: Data/fitness_data_convert.py
 :Description: Convert Apple Health "export.xml" file into a csv
 :Version: 0.0.2
 :Created: 2019-10-04
 :Updated: 2023-10-29
 :Authors: Jason Meno (jam)
-:Dependencies: An export.xml file from Apple Health
+:Dependencies: Apple Health export.xml and Strong workouts csv
 :License: BSD-2-Clause
 """
 
@@ -36,7 +36,10 @@ def preprocess_to_temp_file(file_path):
     print("Pre-processing and writing to temporary file...", end="")
     sys.stdout.flush()
 
-    temp_file_path = "temp_preprocessed_export.xml"
+    temp_file_path = os.path.join(
+        os.path.dirname(file_path),
+        "temp_preprocessed_export.xml"
+    )
     with open(file_path, 'r', encoding='UTF-8') as infile, open(temp_file_path, 'w', encoding='UTF-8') as outfile:
         skip_dtd = False
         for line in infile:
@@ -197,12 +200,16 @@ def xml_to_csv(file_path):
     return combined
 
 
-def save_to_csv(health_df):
+def save_to_csv(health_df, output_dir):
     print("Saving CSV file...", end="")
     sys.stdout.flush()
 
     today = dt.datetime.now().strftime('%Y-%m-%d')
-    health_df.to_csv("apple_health_export_" + today + ".csv", index=False)
+    output_path = os.path.join(
+        output_dir,
+        "apple_health_export_" + today + ".csv"
+    )
+    health_df.to_csv(output_path, index=False)
     print("done!")
 
     return
@@ -214,11 +221,22 @@ def remove_temp_file(temp_file_path):
     
     return
 
+def load_strong_workouts(file_path):
+    print("Loading Strong workouts CSV...", end="")
+    sys.stdout.flush()
+    strong_df = pd.read_csv(file_path)
+    print("done!")
+    return strong_df
+
+
 def main():
-    file_path = "export.xml"
-    temp_file_path = preprocess_to_temp_file(file_path)
+    data_dir = os.path.dirname(os.path.abspath(__file__))
+    strong_workouts_path = os.path.join(data_dir, "strong_workouts.csv")
+    export_path = os.path.join(data_dir, "apple_health_export", "export.xml")
+    _strong_df = load_strong_workouts(strong_workouts_path)
+    temp_file_path = preprocess_to_temp_file(export_path)
     health_df = xml_to_csv(temp_file_path)
-    save_to_csv(health_df)
+    save_to_csv(health_df, data_dir)
     remove_temp_file(temp_file_path)
 
     return
