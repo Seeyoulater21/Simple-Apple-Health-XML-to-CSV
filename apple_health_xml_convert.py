@@ -55,71 +55,146 @@ def strip_invisible_character(line):
     return line.replace("\x0b", "")
 
 
+def format_workout_extras(workout_row):
+    details = []
+
+    if pd.notna(workout_row.get('duration')):
+        unit = workout_row.get('durationUnit', 'min')
+        details.append(f"{workout_row['duration']:.0f} {unit}")
+
+    energy = workout_row.get('totalEnergyBurned')
+    if pd.notna(energy):
+        unit = workout_row.get('totalEnergyBurnedUnit', 'kcal')
+        details.append(f"{energy:.0f} {unit}")
+
+    distance = workout_row.get('totalDistance')
+    if pd.notna(distance):
+        unit = workout_row.get('totalDistanceUnit', 'km')
+        details.append(f"{distance:.2f} {unit}")
+
+    return " (" + ", ".join(details) + ")" if details else ""
+
+
 def xml_to_csv(file_path):
-    """Loops through the element tree, retrieving all objects, and then
-    combining them together into a dataframe
-    """
+    """Parses the XML file and returns a daily summary for weight-loss tracking."""
 
     print("Converting XML File to CSV...", end="")
     sys.stdout.flush()
 
-    attribute_list = []
+    record_rows = []
+    workout_rows = []
+    target_record_types = {
+        'HKQuantityTypeIdentifierBodyMass',
+        'HKQuantityTypeIdentifierBodyFatPercentage',
+        'HKCategoryTypeIdentifierSleepAnalysis'
+    }
 
     for event, elem in ET.iterparse(file_path, events=('end',)):
         if event == 'end':
-            child_attrib = elem.attrib
-            for metadata_entry in list(elem):
-                metadata_values = list(metadata_entry.attrib.values())
-                if len(metadata_values) == 2:
-                    metadata_dict = {metadata_values[0]: metadata_values[1]}
-                    child_attrib.update(metadata_dict)
-            attribute_list.append(child_attrib)
+            if elem.tag == 'Record':
+                record_type = elem.attrib.get('type')
+                if record_type in target_record_types:
+                    record_rows.append({
+                        'type': record_type,
+                        'value': elem.attrib.get('value'),
+                        'unit': elem.attrib.get('unit'),
+                        'startDate': elem.attrib.get('startDate'),
+                        'endDate': elem.attrib.get('endDate')
+                    })
+            elif elem.tag == 'Workout':
+                workout_rows.append({
+                    'activityType': elem.attrib.get('workoutActivityType'),
+                    'startDate': elem.attrib.get('startDate'),
+                    'endDate': elem.attrib.get('endDate'),
+                    'duration': elem.attrib.get('duration'),
+                    'durationUnit': elem.attrib.get('durationUnit'),
+                    'totalEnergyBurned': elem.attrib.get('totalEnergyBurned'),
+                    'totalEnergyBurnedUnit': elem.attrib.get('totalEnergyBurnedUnit'),
+                    'totalDistance': elem.attrib.get('totalDistance'),
+                    'totalDistanceUnit': elem.attrib.get('totalDistanceUnit')
+                })
 
             # Clear the element from memory to avoid excessive memory consumption
             elem.clear()
 
-    health_df = pd.DataFrame(attribute_list)
+    records_df = pd.DataFrame(record_rows)
+    workouts_df = pd.DataFrame(workout_rows)
 
-    # Every health data type and some columns have a long identifer
-    # Removing these for readability
-    health_df.type = health_df.type.str.replace('HKQuantityTypeIdentifier', "")
-    health_df.type = health_df.type.str.replace('HKCategoryTypeIdentifier', "")
-    health_df.columns = \
-        health_df.columns.str.replace("HKCharacteristicTypeIdentifier", "")
+    if not records_df.empty:
+        records_df['startDate'] = pd.to_datetime(records_df['startDate'])
+        records_df['endDate'] = pd.to_datetime(records_df['endDate'])
+        records_df['date'] = records_df['startDate'].dt.date
+        records_df['type'] = records_df['type'].str.replace('HKQuantityTypeIdentifier', "")
+        records_df['type'] = records_df['type'].str.replace('HKCategoryTypeIdentifier', "")
 
-    # Reorder some of the columns for easier visual data review
-    original_cols = list(health_df)
-    shifted_cols = ['type',
-                    'sourceName',
-                    'value',
-                    'unit',
-                    'startDate',
-                    'endDate',
-                    'creationDate']
+    if not workouts_df.empty:
+        workouts_df['startDate'] = pd.to_datetime(workouts_df['startDate'])
+        workouts_df['endDate'] = pd.to_datetime(workouts_df['endDate'])
+        workouts_df['date'] = workouts_df['startDate'].dt.date
+        workouts_df['activity'] = workouts_df['activityType'].str.replace(
+            'HKWorkoutActivityType', "")
+        numeric_cols = ['duration', 'totalEnergyBurned', 'totalDistance']
+        workouts_df[numeric_cols] = workouts_df[numeric_cols].apply(
+            pd.to_numeric, errors='coerce')
+        workouts_df['workout_details'] = workouts_df.apply(
+            lambda row: f"{row['startDate'].strftime('%H:%M')}-"
+                        f"{row['endDate'].strftime('%H:%M')} {row['activity']}"
+                        f"{format_workout_extras(row)}",
+            axis=1)
 
-    # Add loop specific column ordering if metadata entries exist
-    if 'com.loopkit.InsulinKit.MetadataKeyProgrammedTempBasalRate' in original_cols:
-        shifted_cols.append(
-            'com.loopkit.InsulinKit.MetadataKeyProgrammedTempBasalRate')
+    body_weight = pd.Series(dtype='float64')
+    body_fat = pd.Series(dtype='float64')
+    sleep_hours = pd.Series(dtype='float64')
+    workouts_by_day = pd.Series(dtype='object')
 
-    if 'com.loopkit.InsulinKit.MetadataKeyScheduledBasalRate' in original_cols:
-        shifted_cols.append(
-            'com.loopkit.InsulinKit.MetadataKeyScheduledBasalRate')
+    if not records_df.empty:
+        body_weight = (
+            records_df[records_df['type'] == 'BodyMass']
+            .assign(value=lambda df: pd.to_numeric(df['value'], errors='coerce'))
+            .groupby('date')['value']
+            .mean()
+        )
 
-    if 'com.loudnate.CarbKit.HKMetadataKey.AbsorptionTimeMinutes' in original_cols:
-        shifted_cols.append(
-            'com.loudnate.CarbKit.HKMetadataKey.AbsorptionTimeMinutes')
+        body_fat = (
+            records_df[records_df['type'] == 'BodyFatPercentage']
+            .assign(value=lambda df: pd.to_numeric(df['value'], errors='coerce'))
+            .groupby('date')['value']
+            .mean()
+        )
 
-    remaining_cols = list(set(original_cols) - set(shifted_cols))
-    reordered_cols = shifted_cols + remaining_cols
-    health_df = health_df.reindex(labels=reordered_cols, axis='columns')
+        sleep_records = records_df[records_df['type'] == 'SleepAnalysis'].copy()
+        if not sleep_records.empty:
+            sleep_records['is_asleep'] = sleep_records['value'].str.contains(
+                'Asleep', na=False)
+            sleep_records = sleep_records[sleep_records['is_asleep']]
+            sleep_records['sleep_minutes'] = (
+                sleep_records['endDate'] - sleep_records['startDate']
+            ).dt.total_seconds() / 60
+            sleep_hours = (
+                sleep_records.groupby('date')['sleep_minutes'].sum() / 60
+            )
 
-    # Sort by newest data first
-    health_df.sort_values(by='startDate', ascending=False, inplace=True)
+    if not workouts_df.empty:
+        workouts_by_day = (
+            workouts_df.groupby('date')['workout_details']
+            .apply(lambda values: " | ".join(values))
+        )
+
+    combined = pd.concat(
+        [
+            body_weight.rename('body_weight'),
+            body_fat.rename('body_fat'),
+            sleep_hours.rename('sleep_hours'),
+            workouts_by_day.rename('workouts')
+        ],
+        axis=1
+    ).reset_index().rename(columns={'index': 'date'})
+
+    combined.sort_values(by='date', ascending=False, inplace=True)
 
     print("done!")
 
-    return health_df
+    return combined
 
 
 def save_to_csv(health_df):
