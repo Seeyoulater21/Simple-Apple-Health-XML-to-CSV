@@ -4,6 +4,12 @@
 
 A simple script to convert Apple Health's export.xml file to an easy to use csv.
 
+## Current Status (QA)
+
+* The project is a single Python script: `Data/fitness_data_convert.py`, with optional Strong CSV merge support.
+* No automated test suite is included; basic QA currently consists of a Python syntax check (`python3 -m py_compile Data/fitness_data_convert.py`).
+* A real Apple Health `export.xml` file is required to run the conversion, and it is not bundled with this repo.
+
 ## How to Run 
 
 ### 1. Verify you have Python 3 & Pandas installed on your machine or environment
