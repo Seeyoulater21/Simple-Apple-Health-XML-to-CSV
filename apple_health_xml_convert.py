@@ -126,6 +126,10 @@ def xml_to_csv(file_path):
         records_df['date'] = records_df['startDate'].dt.date
         records_df['type'] = records_df['type'].str.replace('HKQuantityTypeIdentifier', "")
         records_df['type'] = records_df['type'].str.replace('HKCategoryTypeIdentifier', "")
+        records_df = records_df.drop_duplicates(
+            subset=['type', 'date', 'value'],
+            keep='first'
+        )
 
     if not workouts_df.empty:
         workouts_df['startDate'] = pd.to_datetime(workouts_df['startDate'])
@@ -195,6 +199,33 @@ def xml_to_csv(file_path):
     print("done!")
 
     return combined
+
+
+def load_strong_workouts(file_path="strong_workouts.csv"):
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Missing Strong workouts file: {file_path}")
+
+    strong_workouts_df = pd.read_csv(file_path)
+    dedupe_columns = [
+        'Date',
+        'Workout Name',
+        'Exercise Name',
+        'Set Order',
+        'Weight',
+        'Reps',
+        'Distance',
+        'Seconds'
+    ]
+    available_columns = [
+        column for column in dedupe_columns if column in strong_workouts_df.columns
+    ]
+    if available_columns:
+        strong_workouts_df = strong_workouts_df.drop_duplicates(
+            subset=available_columns,
+            keep='first'
+        )
+
+    return strong_workouts_df
 
 
 def save_to_csv(health_df):
