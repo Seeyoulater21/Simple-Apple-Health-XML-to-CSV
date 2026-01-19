@@ -27,24 +27,24 @@ If you get a _**ModuleNotFoundError: No module named 'pandas'**_ error, install 
 
 Your data will be prepared, and then you can transfer the export.zip file to your machine.
 
-### 3. Unzip the file, which should contain:
+### 3. Unzip the file into the `Data/` folder so it contains:
 
-   * apple_health_export
-     * export.xml (This is the file with your data that you want to convert)
-     
-     * export_cda.xml
-     
-       
+   * Data
+     * apple_health_export
+       * export.xml (This is the file with your data that you want to convert)
+       * export_cda.xml
 
-### 4. Place the "apple_health_xml_convert.py" file from this repo into the folder alongside the files and run the script
+### 4. (Optional) Place your Strong export CSV at `Data/strong_workouts.csv`
 
-`python3 apple_health_xml_convert.py`
+### 5. Run the script from the repo root
+
+`python3 Data/fitness_data_convert.py`
 
 
 
 The export will be written with the format:
 
-* **apple_health_export_YYYY-MM-DD.csv**
+* **Data/apple_health_export_YYYY-MM-DD.csv**
 
   
 
